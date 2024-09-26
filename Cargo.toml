@@ -1,0 +1,17 @@
+[package]
+name = "bevy_spatial_egui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = "0.14.2"
+bevy_egui = "0.29.0"
+bevy-suis = { git = "https://github.com/Schmarni-Dev/bevy-suis", branch = "further_work" }
+
+[dev-dependencies]
+bevy_panorbit_camera = "0.19.3"
+bevy_mod_openxr = { git = "https://github.com/awtterpip/bevy_oxr" }
+
+[lints.clippy]
+too_many_arguments = "allow"
+type_complexity = "allow"
