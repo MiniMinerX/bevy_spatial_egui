@@ -15,6 +15,7 @@ use bevy_mod_openxr::add_xr_plugins;
 fn main() -> AppExit {
     App::new()
         .add_plugins(add_xr_plugins(DefaultPlugins))
+        .add_plugins(bevy_xr_utils::hand_gizmos::HandGizmosPlugin)
         .add_plugins(PanOrbitCameraPlugin)
         .add_plugins((
             SuisCorePlugin,

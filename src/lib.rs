@@ -1,16 +1,22 @@
 pub mod window_mesh;
 
+use std::mem;
+
 use bevy::{
+    color::palettes::css,
     ecs::{entity::EntityHashMap, world::Command},
     prelude::*,
     render::render_resource::{Extent3d, TextureUsages},
     window::PrimaryWindow,
 };
-use bevy_egui::{egui, EguiContext, EguiInput, EguiRenderToTextureHandle, EguiSet};
+use bevy_egui::{
+    egui::{self, Pos2},
+    EguiContext, EguiInput, EguiRenderToTextureHandle, EguiSet,
+};
 use bevy_suis::{
     window_pointers::MouseInputMethodData, xr::HandInputMethodData,
     xr_controllers::XrControllerInputMethodData, CaptureContext, Field, InputHandler,
-    InputHandlingContext, PointerInputMethod,
+    InputHandlerCaptures, InputHandlingContext, PointerInputMethod,
 };
 use window_mesh::construct_window_mesh;
 
@@ -60,14 +66,19 @@ fn forward_egui_events(
     }
 }
 
+#[derive(Clone, Copy, Component)]
+struct GrabbedEguiWindow {
+    grabbed_by: Entity,
+    method_relative_transform: Transform,
+}
+
 fn update_windows(
     ctxs: In<Vec<InputHandlingContext>>,
     images: Res<Assets<Image>>,
     mut windows: Query<
         (
-            &InputHandler,
+            &InputHandlerCaptures,
             &SpatialEguiWindowPhysicalSize,
-            &Field,
             &mut EguiInput,
             &mut EguiContext,
             &EguiRenderToTextureHandle,
@@ -83,53 +94,44 @@ fn update_windows(
     mut state: Local<EntityHashMap<EntityHashMap<InputState>>>,
 ) {
     for ctx in ctxs.iter() {
-        let Ok((handler, phys_size, field, mut egui_input, mut egui_ctx, texture_handle)) =
+        let Ok((handler, phys_size, mut egui_input, mut egui_ctx, texture_handle)) =
             windows.get_mut(ctx.handler)
         else {
             continue;
         };
         if handler.captured_methods.is_empty() {
             egui_input.events.push(egui::Event::PointerGone);
-            continue;
         }
         let resolution = images.get(&texture_handle.0).unwrap().size_f32();
+        let mut next_states = EntityHashMap::<InputState>::default();
         for (method_ctx, (xr_controller_data, xr_hand_data, mouse_data, is_pointer)) in ctx
             .methods
             .iter()
             .filter_map(|ctx| methods.get(ctx.input_method).map(|v| (ctx, v)).ok())
         {
-            let interaction_point = match xr_hand_data {
-                // already relative
-                Some(hand) => {
-                    hand.get_in_relative_space(&ctx.handler_location)
-                        .index
-                        .tip
-                        .pos
-                }
-                None => method_ctx.input_method_location.translation,
-            };
-            // already in local space
-            let closest_point = field.closest_point2(&GlobalTransform::IDENTITY, interaction_point);
             let mut current_state = InputState::default();
-            if closest_point.distance(interaction_point) <= f32::EPSILON && !is_pointer {
-                current_state.left_button = true;
+            if method_ctx
+                .closest_point
+                .distance(method_ctx.input_method_location.translation)
+                <= f32::EPSILON
+                && !is_pointer
+            {
+                current_state.click = true;
             }
             if let Some(controller) = xr_controller_data {
-                current_state.left_button |= controller.trigger_pulled;
+                current_state.click |= controller.trigger_pulled;
             }
             if let Some(hand) = xr_hand_data {
                 let hand = hand.get_in_relative_space(&ctx.handler_location);
-                current_state.left_button |= hand.index.tip.pos.distance(hand.thumb.tip.pos)
+                current_state.click |= hand.index.tip.pos.distance(hand.thumb.tip.pos)
                     > (0.002 + hand.index.tip.radius + hand.thumb.tip.radius)
             }
             if let Some(mouse) = mouse_data {
-                current_state.left_button |= mouse.left_button.pressed;
-                current_state.right_button |= mouse.right_button.pressed;
-                current_state.middle_button |= mouse.middle_button.pressed;
+                current_state.click |= mouse.left_button.pressed;
                 current_state.discrete_scroll += mouse.discrete_scroll;
                 current_state.continuous_scroll += mouse.continuous_scroll;
             }
-            let uv = ((closest_point.xy() / phys_size.0.xy()) * -1.) + 0.5;
+            let uv = ((method_ctx.closest_point.xy() / phys_size.0.xy()) * -1.) + 0.5;
             let pos = egui::Pos2 {
                 x: (uv.x * resolution.x) / egui_ctx.get_mut().pixels_per_point(),
                 y: (uv.y * resolution.y) / egui_ctx.get_mut().pixels_per_point(),
@@ -138,9 +140,9 @@ fn update_windows(
             let last_state = state
                 .entry(ctx.handler)
                 .or_default()
-                .entry(method_ctx.input_method)
-                .or_default();
-            if current_state.left_button && !last_state.left_button {
+                .remove(&method_ctx.input_method)
+                .unwrap_or_default();
+            if current_state.click && !last_state.click {
                 egui_input.events.push(egui::Event::PointerButton {
                     pos,
                     button: egui::PointerButton::Primary,
@@ -148,42 +150,10 @@ fn update_windows(
                     modifiers: egui::Modifiers::NONE,
                 });
             }
-            if !current_state.left_button && last_state.left_button {
+            if !current_state.click && last_state.click {
                 egui_input.events.push(egui::Event::PointerButton {
                     pos,
                     button: egui::PointerButton::Primary,
-                    pressed: false,
-                    modifiers: egui::Modifiers::NONE,
-                });
-            }
-            if current_state.right_button && !last_state.right_button {
-                egui_input.events.push(egui::Event::PointerButton {
-                    pos,
-                    button: egui::PointerButton::Secondary,
-                    pressed: true,
-                    modifiers: egui::Modifiers::NONE,
-                });
-            }
-            if !current_state.right_button && last_state.right_button {
-                egui_input.events.push(egui::Event::PointerButton {
-                    pos,
-                    button: egui::PointerButton::Secondary,
-                    pressed: false,
-                    modifiers: egui::Modifiers::NONE,
-                });
-            }
-            if current_state.middle_button && !last_state.middle_button {
-                egui_input.events.push(egui::Event::PointerButton {
-                    pos,
-                    button: egui::PointerButton::Middle,
-                    pressed: true,
-                    modifiers: egui::Modifiers::NONE,
-                });
-            }
-            if !current_state.middle_button && last_state.middle_button {
-                egui_input.events.push(egui::Event::PointerButton {
-                    pos,
-                    button: egui::PointerButton::Middle,
                     pressed: false,
                     modifiers: egui::Modifiers::NONE,
                 });
@@ -208,16 +178,25 @@ fn update_windows(
                     modifiers: egui::Modifiers::NONE,
                 });
             }
-            *last_state = current_state;
+            next_states.insert(method_ctx.input_method, current_state);
+        }
+        for state in mem::replace(state.entry(ctx.handler).or_default(), next_states).into_values()
+        {
+            if state.click {
+                egui_input.events.push(egui::Event::PointerButton {
+                    pos: Pos2::ZERO,
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: egui::Modifiers::NONE,
+                });
+            }
         }
     }
 }
 
 #[derive(Default)]
 struct InputState {
-    left_button: bool,
-    middle_button: bool,
-    right_button: bool,
+    click: bool,
     /// How many Lines to scroll
     discrete_scroll: Vec2,
     /// How many Pixels to scroll
@@ -303,8 +282,7 @@ fn input_surface_capture_condition(
         Option<&HandInputMethodData>,
         Option<&MouseInputMethodData>,
     )>,
-    // TODO: implement LastInputMethodData in bevy-suis and nuke this ugly shit!
-    mut last_capture: Local<EntityHashMap<bool>>,
+    mut giz: Gizmos,
 ) -> bool {
     let Ok((is_pointer_method, xr_controller_data, xr_hand_data, mouse_data)) =
         method_query.get(ctx.input_method)
@@ -312,48 +290,42 @@ fn input_surface_capture_condition(
         warn!("invald input method");
         return false;
     };
-    let interaction_point = match xr_hand_data {
-        Some(hand) => {
-            hand.get_in_relative_space(&ctx.handler_location)
-                .index
-                .tip
-                .pos
-        }
-        None => ctx.input_method_location.translation,
-    };
-    let mut check_inputs = false;
     if is_pointer_method {
         return true;
-    } else {
-        let distance = interaction_point.distance(ctx.input_method_location.translation);
-        if distance <= f32::EPSILON {
-            return true;
-        }
-        if distance <= MAX_CLOSE_RANGE_INTERACTION_DISTANCE {
-            check_inputs = true;
-        }
+    }
+    let distance = ctx
+        .closest_point
+        .distance(ctx.input_method_location.translation);
+    if distance > MAX_CLOSE_RANGE_INTERACTION_DISTANCE {
+        return false;
+    }
+    if distance <= f32::EPSILON {
+        return true;
     }
 
+    let mat = ctx.handler_location.compute_matrix();
+    giz.line(
+        mat.transform_point3(ctx.closest_point),
+        mat.transform_point3(ctx.input_method_location.translation),
+        css::WHITE,
+    );
+
     let mut capture = false;
-    if check_inputs {
-        if let Some(mouse) = mouse_data {
-            capture |= mouse.left_button.pressed;
-            capture |= mouse.right_button.pressed;
-            capture |= mouse.middle_button.pressed;
-            capture |= mouse.discrete_scroll != Vec2::ZERO;
-            capture |= mouse.continuous_scroll != Vec2::ZERO;
-        }
-        if let Some(hand) = xr_hand_data {
-            let hand = hand.get_in_relative_space(&ctx.handler_location);
-            capture |= hand.index.tip.pos.distance(hand.thumb.tip.pos)
-                > (0.002 + hand.index.tip.radius + hand.thumb.tip.radius)
-        }
-        if let Some(controller) = xr_controller_data {
-            capture |= controller.trigger_pulled;
-        }
+    if let Some(mouse) = mouse_data {
+        capture |= mouse.left_button.pressed;
+        capture |= mouse.right_button.pressed;
+        capture |= mouse.discrete_scroll != Vec2::ZERO;
+        capture |= mouse.continuous_scroll != Vec2::ZERO;
     }
-    let c = capture;
-    capture |= last_capture.get(&ctx.handler).copied().unwrap_or_default();
-    last_capture.insert(ctx.handler, c);
+    if let Some(hand) = xr_hand_data {
+        let hand = hand.get_in_relative_space(&ctx.handler_location);
+        capture |= hand.index.tip.pos.distance(hand.thumb.tip.pos)
+            < (0.002 + hand.index.tip.radius + hand.thumb.tip.radius);
+    }
+    if let Some(controller) = xr_controller_data {
+        capture |= controller.trigger_pulled;
+        capture |= controller.squeezed;
+        capture |= controller.stick_pos.y.abs() > 0.1;
+    }
     capture
 }

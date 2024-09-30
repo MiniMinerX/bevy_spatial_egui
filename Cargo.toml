@@ -11,6 +11,7 @@ bevy-suis = { git = "https://github.com/Schmarni-Dev/bevy-suis", branch = "furth
 [dev-dependencies]
 bevy_panorbit_camera = "0.19.3"
 bevy_mod_openxr = { git = "https://github.com/awtterpip/bevy_oxr" }
+bevy_xr_utils = { git = "https://github.com/awtterpip/bevy_oxr" }
 
 [lints.clippy]
 too_many_arguments = "allow"
