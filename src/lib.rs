@@ -36,6 +36,8 @@ impl Plugin for SpatialEguiPlugin {
         );
     }
 }
+#[derive(Component, Clone, Copy, Debug)]
+pub struct ImmovableSpatialEguiWindow;
 
 fn forward_egui_events(
     mut query: Query<&mut EguiInput, With<SpatialEguiWindow>>,
@@ -68,7 +70,6 @@ fn forward_egui_events(
 
 #[derive(Clone, Copy, Component)]
 struct GrabbedEguiWindow {
-    grabbed_by: Entity,
     method_relative_transform: Transform,
 }
 
@@ -85,6 +86,7 @@ fn update_windows(
             Option<&mut GrabbedEguiWindow>,
             &mut Transform,
             Option<&Parent>,
+            Has<ImmovableSpatialEguiWindow>,
         ),
         With<SpatialEguiWindow>,
     >,
@@ -110,6 +112,7 @@ fn update_windows(
             mut grabbed,
             mut window_transform,
             parent,
+            immovable,
         )) = windows.get_mut(ctx.handler)
         else {
             continue;
@@ -157,13 +160,12 @@ fn update_windows(
             if (!current_state.grab) && last_state.grab {
                 cmds.entity(ctx.handler).remove::<GrabbedEguiWindow>();
             }
-            if current_state.grab && !last_state.grab {
+            if current_state.grab && (!last_state.grab) && !immovable {
                 cmds.entity(ctx.handler).insert(GrabbedEguiWindow {
                     method_relative_transform: Transform::from_matrix(
                         method_gt.compute_matrix().inverse()
                             * ctx.handler_location.compute_matrix(),
                     ),
-                    grabbed_by: method_ctx.input_method,
                 });
             }
             if let Some(grabbed) = grabbed.as_mut() {
@@ -229,8 +231,7 @@ fn update_windows(
             }
             next_states.insert(method_ctx.input_method, current_state);
         }
-        for (entity, state) in
-            mem::replace(state.entry(ctx.handler).or_default(), next_states).into_iter()
+        for state in mem::replace(state.entry(ctx.handler).or_default(), next_states).into_values()
         {
             if state.click {
                 egui_input.events.push(egui::Event::PointerButton {

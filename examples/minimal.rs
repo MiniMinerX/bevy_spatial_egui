@@ -3,7 +3,6 @@ use bevy_egui::egui;
 use bevy_egui::EguiContext;
 use bevy_egui::EguiPlugin;
 use bevy_panorbit_camera::PanOrbitCamera;
-use bevy_panorbit_camera::PanOrbitCameraPlugin;
 use bevy_spatial_egui::SpawnSpatialEguiWindowCommand;
 use bevy_suis::debug::SuisDebugGizmosPlugin;
 use bevy_suis::window_pointers::SuisWindowPointerPlugin;
@@ -12,7 +11,6 @@ use bevy_suis::SuisCorePlugin;
 fn main() -> AppExit {
     App::new()
         .add_plugins(DefaultPlugins)
-        // .add_plugins(PanOrbitCameraPlugin)
         .add_plugins((
             SuisCorePlugin,
             SuisWindowPointerPlugin,
