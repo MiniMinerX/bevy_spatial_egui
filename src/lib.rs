@@ -82,20 +82,35 @@ fn update_windows(
             &mut EguiInput,
             &mut EguiContext,
             &EguiRenderToTextureHandle,
+            Option<&mut GrabbedEguiWindow>,
+            &mut Transform,
+            Option<&Parent>,
         ),
         With<SpatialEguiWindow>,
     >,
     methods: Query<(
+        &GlobalTransform,
         Option<&XrControllerInputMethodData>,
         Option<&HandInputMethodData>,
         Option<&MouseInputMethodData>,
         Has<PointerInputMethod>,
     )>,
     mut state: Local<EntityHashMap<EntityHashMap<InputState>>>,
+    gt_query: Query<&GlobalTransform>,
+    time: Res<Time>,
+    mut cmds: Commands,
 ) {
     for ctx in ctxs.iter() {
-        let Ok((handler, phys_size, mut egui_input, mut egui_ctx, texture_handle)) =
-            windows.get_mut(ctx.handler)
+        let Ok((
+            handler,
+            phys_size,
+            mut egui_input,
+            mut egui_ctx,
+            texture_handle,
+            mut grabbed,
+            mut window_transform,
+            parent,
+        )) = windows.get_mut(ctx.handler)
         else {
             continue;
         };
@@ -104,10 +119,10 @@ fn update_windows(
         }
         let resolution = images.get(&texture_handle.0).unwrap().size_f32();
         let mut next_states = EntityHashMap::<InputState>::default();
-        for (method_ctx, (xr_controller_data, xr_hand_data, mouse_data, is_pointer)) in ctx
-            .methods
-            .iter()
-            .filter_map(|ctx| methods.get(ctx.input_method).map(|v| (ctx, v)).ok())
+        for (method_ctx, (method_gt, xr_controller_data, xr_hand_data, mouse_data, is_pointer)) in
+            ctx.methods
+                .iter()
+                .filter_map(|ctx| methods.get(ctx.input_method).map(|v| (ctx, v)).ok())
         {
             let mut current_state = InputState::default();
             if method_ctx
@@ -120,6 +135,8 @@ fn update_windows(
             }
             if let Some(controller) = xr_controller_data {
                 current_state.click |= controller.trigger_pulled;
+                current_state.continuous_scroll +=
+                    controller.stick_pos * time.delta_seconds() * 1000.;
             }
             if let Some(hand) = xr_hand_data {
                 let hand = hand.get_in_relative_space(&ctx.handler_location);
@@ -128,59 +145,92 @@ fn update_windows(
             }
             if let Some(mouse) = mouse_data {
                 current_state.click |= mouse.left_button.pressed;
+                current_state.grab |= mouse.right_button.pressed;
                 current_state.discrete_scroll += mouse.discrete_scroll;
                 current_state.continuous_scroll += mouse.continuous_scroll;
             }
-            let uv = ((method_ctx.closest_point.xy() / phys_size.0.xy()) * -1.) + 0.5;
-            let pos = egui::Pos2 {
-                x: (uv.x * resolution.x) / egui_ctx.get_mut().pixels_per_point(),
-                y: (uv.y * resolution.y) / egui_ctx.get_mut().pixels_per_point(),
-            };
-            egui_input.events.push(egui::Event::PointerMoved(pos));
             let last_state = state
                 .entry(ctx.handler)
                 .or_default()
                 .remove(&method_ctx.input_method)
                 .unwrap_or_default();
-            if current_state.click && !last_state.click {
-                egui_input.events.push(egui::Event::PointerButton {
-                    pos,
-                    button: egui::PointerButton::Primary,
-                    pressed: true,
-                    modifiers: egui::Modifiers::NONE,
+            if (!current_state.grab) && last_state.grab {
+                cmds.entity(ctx.handler).remove::<GrabbedEguiWindow>();
+            }
+            if current_state.grab && !last_state.grab {
+                cmds.entity(ctx.handler).insert(GrabbedEguiWindow {
+                    method_relative_transform: Transform::from_matrix(
+                        method_gt.compute_matrix().inverse()
+                            * ctx.handler_location.compute_matrix(),
+                    ),
+                    grabbed_by: method_ctx.input_method,
                 });
             }
-            if !current_state.click && last_state.click {
-                egui_input.events.push(egui::Event::PointerButton {
-                    pos,
-                    button: egui::PointerButton::Primary,
-                    pressed: false,
-                    modifiers: egui::Modifiers::NONE,
-                });
+            if let Some(grabbed) = grabbed.as_mut() {
+                let offset_matrix = parent
+                    .and_then(|e| gt_query.get(e.get()).ok())
+                    .unwrap_or(&GlobalTransform::IDENTITY);
+
+                grabbed.method_relative_transform.translation.z +=
+                    current_state.continuous_scroll.y / 500.0;
+                grabbed.method_relative_transform.translation.z +=
+                    current_state.discrete_scroll.y / 10.0;
+
+                *window_transform = Transform::from_matrix(
+                    method_gt
+                        .mul_transform(grabbed.method_relative_transform)
+                        .compute_matrix()
+                        * offset_matrix.compute_matrix().inverse(),
+                );
             }
-            if current_state.discrete_scroll != Vec2::ZERO {
-                egui_input.events.push(egui::Event::MouseWheel {
-                    unit: egui::MouseWheelUnit::Line,
-                    delta: egui::Vec2 {
-                        x: current_state.discrete_scroll.x,
-                        y: current_state.discrete_scroll.y,
-                    },
-                    modifiers: egui::Modifiers::NONE,
-                });
-            }
-            if current_state.continuous_scroll != Vec2::ZERO {
-                egui_input.events.push(egui::Event::MouseWheel {
-                    unit: egui::MouseWheelUnit::Point,
-                    delta: egui::Vec2 {
-                        x: current_state.continuous_scroll.x,
-                        y: current_state.continuous_scroll.y,
-                    },
-                    modifiers: egui::Modifiers::NONE,
-                });
+            if grabbed.is_none() {
+                let uv = ((method_ctx.closest_point.xy() / phys_size.0.xy()) * -1.) + 0.5;
+                let pos = egui::Pos2 {
+                    x: (uv.x * resolution.x) / egui_ctx.get_mut().pixels_per_point(),
+                    y: (uv.y * resolution.y) / egui_ctx.get_mut().pixels_per_point(),
+                };
+                egui_input.events.push(egui::Event::PointerMoved(pos));
+                if current_state.click && !last_state.click {
+                    egui_input.events.push(egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        modifiers: egui::Modifiers::NONE,
+                    });
+                }
+                if !current_state.click && last_state.click {
+                    egui_input.events.push(egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed: false,
+                        modifiers: egui::Modifiers::NONE,
+                    });
+                }
+                if current_state.discrete_scroll != Vec2::ZERO {
+                    egui_input.events.push(egui::Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Line,
+                        delta: egui::Vec2 {
+                            x: current_state.discrete_scroll.x,
+                            y: current_state.discrete_scroll.y,
+                        },
+                        modifiers: egui::Modifiers::NONE,
+                    });
+                }
+                if current_state.continuous_scroll != Vec2::ZERO {
+                    egui_input.events.push(egui::Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: egui::Vec2 {
+                            x: current_state.continuous_scroll.x,
+                            y: current_state.continuous_scroll.y,
+                        },
+                        modifiers: egui::Modifiers::NONE,
+                    });
+                }
             }
             next_states.insert(method_ctx.input_method, current_state);
         }
-        for state in mem::replace(state.entry(ctx.handler).or_default(), next_states).into_values()
+        for (entity, state) in
+            mem::replace(state.entry(ctx.handler).or_default(), next_states).into_iter()
         {
             if state.click {
                 egui_input.events.push(egui::Event::PointerButton {
@@ -190,6 +240,9 @@ fn update_windows(
                     modifiers: egui::Modifiers::NONE,
                 });
             }
+            if state.grab {
+                cmds.entity(ctx.handler).remove::<GrabbedEguiWindow>();
+            }
         }
     }
 }
@@ -197,6 +250,7 @@ fn update_windows(
 #[derive(Default)]
 struct InputState {
     click: bool,
+    grab: bool,
     /// How many Lines to scroll
     discrete_scroll: Vec2,
     /// How many Pixels to scroll

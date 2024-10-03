@@ -12,7 +12,7 @@ use bevy_suis::SuisCorePlugin;
 fn main() -> AppExit {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(PanOrbitCameraPlugin)
+        // .add_plugins(PanOrbitCameraPlugin)
         .add_plugins((
             SuisCorePlugin,
             SuisWindowPointerPlugin,
