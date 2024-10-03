@@ -138,6 +138,7 @@ fn update_windows(
             }
             if let Some(controller) = xr_controller_data {
                 current_state.click |= controller.trigger_pulled;
+                current_state.grab |= controller.squeezed;
                 current_state.continuous_scroll +=
                     controller.stick_pos * time.delta_seconds() * 1000.;
             }
