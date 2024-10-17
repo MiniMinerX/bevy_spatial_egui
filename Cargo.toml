@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 bevy = "0.14.2"
 bevy_egui = { branch = "new_egui", git = "https://github.com/MiniMinerX/bevy_egui.git", feature = ["render"] }
-bevy-suis = { git = "https://github.com/Schmarni-Dev/bevy-suis", branch = "further_work" }
+bevy-suis = { git = "https://github.com/Schmarni-Dev/bevy-suis", rev = "dba7c57", branch = "further_work" }
 
 [dev-dependencies]
 bevy_panorbit_camera = "0.19.3"
