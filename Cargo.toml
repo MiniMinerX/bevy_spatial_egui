@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 bevy = "0.14.2"
 bevy_egui = "0.29.0"
-bevy-suis = { git = "https://github.com/Schmarni-Dev/bevy-suis.git", branch = "allow-recapturing" }
+bevy-suis = {git = "https://github.com/MiniMinerX/bevy-suis.git", branch = "furthur_work_rollback"}
 
 
 [dev-dependencies]
