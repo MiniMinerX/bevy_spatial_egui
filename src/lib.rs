@@ -32,7 +32,7 @@ impl Plugin for SpatialEguiPlugin {
             PreUpdate,
             forward_egui_events
                 .after(EguiSet::ProcessInput)
-                .before(EguiSet::BeginFrame),
+                .before(EguiSet::BeginPass),
         );
     }
 }
