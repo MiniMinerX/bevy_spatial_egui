@@ -10,9 +10,11 @@ bevy-suis = {git = "https://github.com/MiniMinerX/bevy-suis.git", branch = "furt
 
 
 [dev-dependencies]
-bevy_panorbit_camera = "0.19.3"
-bevy_mod_openxr = { git = "https://github.com/awtterpip/bevy_oxr" }
-bevy_xr_utils = { git = "https://github.com/awtterpip/bevy_oxr" }
+bevy_panorbit_camera = "0.20.1"
+bevy_mod_openxr = { git = "https://github.com/awtterpip/bevy_oxr.git", rev = "c0be012b9dcc6a501a87aff9b7eafb3d886d8c9e"}
+bevy_xr_utils = { git = "https://github.com/awtterpip/bevy_oxr.git", rev = "c0be012b9dcc6a501a87aff9b7eafb3d886d8c9e"}
+# bevy_mod_openxr = { git = "https://github.com/awtterpip/bevy_oxr" }
+# bevy_xr_utils = { git = "https://github.com/awtterpip/bevy_oxr" }
 
 [lints.clippy]
 too_many_arguments = "allow"
