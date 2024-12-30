@@ -32,7 +32,7 @@ impl Plugin for SpatialEguiPlugin {
             PreUpdate,
             forward_egui_events
                 .after(EguiSet::ProcessInput)
-                .before(EguiSet::BeginFrame),
+                .before(EguiSet::BeginPass),
         );
     }
 }
@@ -140,7 +140,7 @@ fn update_windows(
                 current_state.click |= controller.trigger_pulled;
                 current_state.grab |= controller.squeezed;
                 current_state.continuous_scroll +=
-                    controller.stick_pos * time.delta_seconds() * 1000.;
+                    controller.stick_pos * time.delta_secs() * 1000.;
             }
             if let Some(hand) = xr_hand_data {
                 let hand = hand.get_in_relative_space(&ctx.handler_location);
@@ -306,12 +306,9 @@ impl Command for SpawnSpatialEguiWindowCommand {
             Field::Cuboid(Cuboid::from_size(size)),
             InputHandler::new(input_surface_capture_condition),
             EguiRenderToTextureHandle(texture),
-            PbrBundle {
-                mesh,
-                material: mat,
-                transform: Transform::from_translation(self.position).with_rotation(self.rotation),
-                ..Default::default()
-            },
+            Mesh3d(mesh),
+            MeshMaterial3d(mat),
+            Transform::from_translation(self.position).with_rotation(self.rotation),
             SpatialEguiWindow,
             SpatialEguiWindowPhysicalSize(size),
         );
