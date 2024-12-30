@@ -7,7 +7,7 @@ edition = "2021"
 bevy = "0.15"
 bevy_egui = { branch = "fix_egui30", git = "https://github.com/MiniMinerX/bevy_egui.git", feature = ["render"] }
 bevy-suis = { git = "https://github.com/MiniMinerX/bevy-suis.git", branch = "dev-bevy-0.15" }
-
+wgpu-types = { version = "23.0"}
 
 [dev-dependencies]
 bevy_panorbit_camera = "0.21"

@@ -6,12 +6,11 @@ use bevy::{
     color::palettes::css,
     ecs::{entity::EntityHashMap, world::Command},
     prelude::*,
-    render::render_resource::{Extent3d, TextureUsages},
+    render::render_resource::{Extent3d, LoadOp, TextureUsages},
     window::PrimaryWindow,
 };
 use bevy_egui::{
-    egui::{self, Pos2},
-    EguiContext, EguiInput, EguiRenderToTextureHandle, EguiSet,
+    egui::{self, Pos2}, EguiContext, EguiInput, EguiRenderToImage, EguiSet
 };
 use bevy_suis::{
     window_pointers::MouseInputMethodData, xr::HandInputMethodData,
@@ -82,7 +81,7 @@ fn update_windows(
             &SpatialEguiWindowPhysicalSize,
             &mut EguiInput,
             &mut EguiContext,
-            &EguiRenderToTextureHandle,
+            &EguiRenderToImage,
             Option<&mut GrabbedEguiWindow>,
             &mut Transform,
             Option<&Parent>,
@@ -108,7 +107,7 @@ fn update_windows(
             phys_size,
             mut egui_input,
             mut egui_ctx,
-            texture_handle,
+            image_handle,
             mut grabbed,
             mut window_transform,
             parent,
@@ -120,7 +119,7 @@ fn update_windows(
         if handler.captured_methods.is_empty() {
             egui_input.events.push(egui::Event::PointerGone);
         }
-        let resolution = images.get(&texture_handle.0).unwrap().size_f32();
+        let resolution = images.get(&image_handle.handle).unwrap().size_f32();
         let mut next_states = EntityHashMap::<InputState>::default();
         for (method_ctx, (method_gt, xr_controller_data, xr_hand_data, mouse_data, is_pointer)) in
             ctx.methods
@@ -305,7 +304,10 @@ impl Command for SpawnSpatialEguiWindowCommand {
         let bundle = (
             Field::Cuboid(Cuboid::from_size(size)),
             InputHandler::new(input_surface_capture_condition),
-            EguiRenderToTextureHandle(texture),
+            EguiRenderToImage{
+                handle: texture,
+                load_op: LoadOp::Clear(wgpu_types::Color::TRANSPARENT), 
+            },
             Mesh3d(mesh),
             MeshMaterial3d(mat),
             Transform::from_translation(self.position).with_rotation(self.rotation),
