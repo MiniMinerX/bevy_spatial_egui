@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 bevy = "0.15"
-bevy_egui = { version = "0.31", feature = ["render"] }
+bevy_egui = { branch = "fix_egui30", git = "https://github.com/MiniMinerX/bevy_egui.git", feature = ["render"] }
 bevy-suis = { git = "https://github.com/MiniMinerX/bevy-suis.git", branch = "dev-bevy-0.15" }
 
 
