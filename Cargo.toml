@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = "0.15"
+bevy = { version = "0.15", default-features = false }
 bevy_egui = { branch = "fix_egui30", git = "https://github.com/MiniMinerX/bevy_egui.git", feature = ["render"] }
 bevy-suis = { git = "https://github.com/MiniMinerX/bevy-suis.git", branch = "dev-bevy-0.15" }
 wgpu-types = { version = "23.0"}
