@@ -11,8 +11,8 @@ wgpu-types = { version = "23.0"}
 
 [dev-dependencies]
 bevy_panorbit_camera = "0.21"
-bevy_mod_openxr = { git = "https://github.com/MiniMinerX/bevy_oxr.git", branch = "dev/bevy-0.15.0"}
-bevy_xr_utils = { git = "https://github.com/MiniMinerX/bevy_oxr.git", branch = "dev/bevy-0.15.0"}
+bevy_mod_openxr = { git = "https://github.com/Schmarni-Dev/bevy_openxr.git", branch = "0.15rc"}
+bevy_xr_utils = { git = "https://github.com/Schmarni-Dev/bevy_openxr.git", branch = "0.15rc"}
 
 [lints.clippy]
 too_many_arguments = "allow"
