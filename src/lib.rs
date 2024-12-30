@@ -43,7 +43,7 @@ fn forward_egui_events(
     window_query: Query<&EguiInput, (With<PrimaryWindow>, Without<SpatialEguiWindow>)>,
 ) {
     let Ok(primary_input) = window_query.get_single() else {
-        warn!("Unable to find one Primary Window!");
+        //warn!("Unable to find one Primary Window!");
         return;
     };
 
