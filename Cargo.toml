@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 bevy = { version = "0.15", default-features = false }
 bevy_egui = { version = "0.32", feature = ["render"] }
-bevy-suis = { git = "https://github.com/Schmarni-Dev/bevy-suis.git", branch = "main"}
+bevy-suis = {git = "https://github.com/MiniMinerX/bevy-suis.git", branch = "dev-0.15-p3"}
 wgpu-types = { version = "24.0"}
 
 [dev-dependencies]
