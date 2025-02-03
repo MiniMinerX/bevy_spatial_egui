@@ -5,14 +5,14 @@ edition = "2021"
 
 [dependencies]
 bevy = { version = "0.15", default-features = false }
-bevy_egui = { branch = "fix_egui30", git = "https://github.com/MiniMinerX/bevy_egui.git", feature = ["render"] }
-bevy-suis = { git = "https://github.com/MiniMinerX/bevy-suis.git", branch = "dev-bevy-0.15" }
-wgpu-types = { version = "23.0"}
+bevy_egui = { version = "0.32", feature = ["render"] }
+bevy-suis = { git = "https://github.com/Schmarni-Dev/bevy-suis.git", branch = "main"}
+wgpu-types = { version = "24.0.1"}
 
 [dev-dependencies]
-bevy_panorbit_camera = "0.21"
-bevy_mod_openxr = { git = "https://github.com/MiniMinerX/bevy_oxr.git", branch = "0.15-dev"}
-bevy_xr_utils = { git = "https://github.com/MiniMinerX/bevy_oxr.git", branch = "0.15-dev"}
+bevy_panorbit_camera = "0.22"
+bevy_mod_openxr = { git = "https://github.com/awtterpip/bevy_oxr.git"}
+bevy_xr_utils = { git = "https://github.com/awtterpip/bevy_oxr.git"}
 
 [lints.clippy]
 too_many_arguments = "allow"
