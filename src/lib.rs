@@ -10,7 +10,7 @@ use bevy::{
     window::PrimaryWindow,
 };
 use bevy_egui::{
-    egui::{self, Pos2}, EguiContext, EguiInput, EguiRenderToImage, EguiSet
+    egui::{self, Pos2}, EguiContext, EguiInput, EguiPreUpdateSet, EguiRenderToImage
 };
 use bevy_suis::{
     window_pointers::MouseInputMethodData, xr::HandInputMethodData,
@@ -30,8 +30,8 @@ impl Plugin for SpatialEguiPlugin {
         app.add_systems(
             PreUpdate,
             forward_egui_events
-                .after(EguiSet::ProcessInput)
-                .before(EguiSet::BeginPass),
+                .after(EguiPreUpdateSet::ProcessInput)
+                .before(EguiPreUpdateSet::BeginPass),
         );
     }
 }
