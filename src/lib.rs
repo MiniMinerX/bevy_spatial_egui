@@ -4,7 +4,7 @@ use std::mem;
 
 use bevy::{
     color::palettes::css,
-    ecs::{entity::EntityHashMap, world::Command},
+    ecs::{entity::EntityHashMap, },
     prelude::*,
     render::render_resource::{Extent3d, LoadOp, TextureUsages},
     window::PrimaryWindow,
@@ -13,9 +13,7 @@ use bevy_egui::{
     egui::{self, Pos2}, EguiContext, EguiInput, EguiPreUpdateSet, EguiRenderToImage
 };
 use bevy_suis::{
-    window_pointers::MouseInputMethodData, xr::HandInputMethodData,
-    xr_controllers::XrControllerInputMethodData, CaptureContext, Field, InputHandler,
-    InputHandlerCaptures, InputHandlingContext, PointerInputMethod,
+    input_method_data::InputMethodData, window_pointers::MouseInputMethod, xr::HandInputMethod, xr_controllers::SuisXrControllerInputMethod, CaptureContext, Field, InputHandler, InputHandlerCaptures, InputHandlingContext, InputMethod, PointerInputMethod
 };
 use window_mesh::construct_window_mesh;
 
@@ -42,7 +40,7 @@ fn forward_egui_events(
     mut query: Query<&mut EguiInput, With<SpatialEguiWindow>>,
     window_query: Query<&EguiInput, (With<PrimaryWindow>, Without<SpatialEguiWindow>)>,
 ) {
-    let Ok(primary_input) = window_query.get_single() else {
+    let Ok(primary_input) = window_query.single() else {
         //warn!("Unable to find one Primary Window!");
         return;
     };
@@ -84,16 +82,17 @@ fn update_windows(
             &EguiRenderToImage,
             Option<&mut GrabbedEguiWindow>,
             &mut Transform,
-            Option<&Parent>,
+            Option<&ChildOf>,
             Has<ImmovableSpatialEguiWindow>,
         ),
         With<SpatialEguiWindow>,
     >,
     methods: Query<(
         &GlobalTransform,
-        Option<&XrControllerInputMethodData>,
-        Option<&HandInputMethodData>,
-        Option<&MouseInputMethodData>,
+        &InputMethodData,
+        Option<&SuisXrControllerInputMethod>,
+        Option<&HandInputMethod>,
+        Option<&MouseInputMethod>,
         Has<PointerInputMethod>,
     )>,
     mut state: Local<EntityHashMap<EntityHashMap<InputState>>>,
@@ -121,12 +120,19 @@ fn update_windows(
         }
         let resolution = images.get(&image_handle.handle).unwrap().size_f32();
         let mut next_states = EntityHashMap::<InputState>::default();
-        for (method_ctx, (method_gt, xr_controller_data, xr_hand_data, mouse_data, is_pointer)) in
+        for (method_ctx, (
+            method_gt,
+            method_data, // This is your new InputMethodData
+            opt_xr_controller_marker, // To know if it's an XR controller
+            opt_hand_marker,          // To know if it's a hand
+            opt_mouse_marker,         // To know if it's a mouse
+            is_pointer
+        )) in
             ctx.methods
                 .iter()
                 .filter_map(|ctx| methods.get(ctx.input_method).map(|v| (ctx, v)).ok())
         {
-            let mut current_state = InputState::default();
+            let mut current_state: InputState = InputState::default();
             if method_ctx
                 .closest_point
                 .distance(method_ctx.input_method_location.translation)
@@ -135,22 +141,29 @@ fn update_windows(
             {
                 current_state.click = true;
             }
-            if let Some(controller) = xr_controller_data {
-                current_state.click |= controller.trigger_pulled;
-                current_state.grab |= controller.squeezed;
-                current_state.continuous_scroll +=
-                    controller.stick_pos * time.delta_secs() * 1000.;
+            if let Some(_xr) = opt_xr_controller_marker {
+                
+                if method_data.select > 0.5 { current_state.click = true; }
+                if method_data.secondary > 0.5 { current_state.grab = true; }
+                if let Some(scroll) = method_data.scroll {
+                    current_state.discrete_scroll += scroll * time.delta_secs() * 1000.;
+                }
             }
-            if let Some(hand) = xr_hand_data {
-                let hand = hand.get_in_relative_space(&ctx.handler_location);
-                current_state.click |= hand.index.tip.pos.distance(hand.thumb.tip.pos)
-                    > (0.002 + hand.index.tip.radius + hand.thumb.tip.radius)
+            if let Some(hand) = opt_hand_marker {
+                
+                if let Some(hand) = method_data.hand {
+                    let hand = hand.get_in_relative_space(&ctx.handler_location);
+                    current_state.click |= hand.index.tip.pos.distance(hand.thumb.tip.pos)
+                        < (0.002 + hand.index.tip.radius + hand.thumb.tip.radius);
+                }
             }
-            if let Some(mouse) = mouse_data {
-                current_state.click |= mouse.left_button.pressed;
-                current_state.grab |= mouse.right_button.pressed;
-                current_state.discrete_scroll += mouse.discrete_scroll;
-                current_state.continuous_scroll += mouse.continuous_scroll;
+            if let Some(mouse) = opt_mouse_marker {
+                if method_data.select > 0.5 { current_state.click = true; }
+                if method_data.secondary > 0.5 { current_state.grab = true; }
+
+                if let Some(scroll) = method_data.scroll {
+                    current_state.discrete_scroll += scroll * time.delta_secs() * 1000.;
+                }
             }
             let last_state = state
                 .entry(ctx.handler)
@@ -170,7 +183,7 @@ fn update_windows(
             }
             if let Some(grabbed) = grabbed.as_mut() {
                 let offset_matrix = parent
-                    .and_then(|e| gt_query.get(e.get()).ok())
+                    .and_then(|e| gt_query.get(e.parent()).ok())
                     .unwrap_or(&GlobalTransform::IDENTITY);
 
                 grabbed.method_relative_transform.translation.z +=
@@ -231,7 +244,7 @@ fn update_windows(
             }
             next_states.insert(method_ctx.input_method, current_state);
         }
-        for state in mem::replace(state.entry(ctx.handler).or_default(), next_states).into_values()
+        for state in state.entry(ctx.handler).or_default().values()
         {
             if state.click {
                 egui_input.events.push(egui::Event::PointerButton {
@@ -280,7 +293,7 @@ impl Command for SpawnSpatialEguiWindowCommand {
                 depth_or_array_layers: 1,
             };
             let mut output_texture = Image {
-                data: vec![0; (size.width * size.height * 4) as usize],
+                data: Some(vec![0; (size.width * size.height * 4) as usize]),
                 ..default()
             };
             output_texture.texture_descriptor.usage |= TextureUsages::RENDER_ATTACHMENT;
@@ -333,13 +346,14 @@ fn input_surface_capture_condition(
     ctx: In<CaptureContext>,
     method_query: Query<(
         Has<PointerInputMethod>,
-        Option<&XrControllerInputMethodData>,
-        Option<&HandInputMethodData>,
-        Option<&MouseInputMethodData>,
+        &InputMethodData,
+        Option<&SuisXrControllerInputMethod>,
+        Option<&HandInputMethod>,
+        Option<&MouseInputMethod>,
     )>,
     mut giz: Gizmos,
 ) -> bool {
-    let Ok((is_pointer_method, xr_controller_data, xr_hand_data, mouse_data)) =
+    let Ok((is_pointer_method, method_data, xr_controller_data, xr_hand_data, mouse_data)) =
         method_query.get(ctx.input_method)
     else {
         warn!("invald input method");
@@ -367,20 +381,31 @@ fn input_surface_capture_condition(
 
     let mut capture = false;
     if let Some(mouse) = mouse_data {
-        capture |= mouse.left_button.pressed;
-        capture |= mouse.right_button.pressed;
-        capture |= mouse.discrete_scroll != Vec2::ZERO;
-        capture |= mouse.continuous_scroll != Vec2::ZERO;
+        if method_data.select > 0.5 { capture = true; }
+        if method_data.secondary > 0.5 { capture = true; }
+
+        if let Some(scroll) = method_data.scroll {
+            if scroll.x > 0.1 || scroll.y > 0.1 {
+                capture = true;
+            }
+        }
     }
     if let Some(hand) = xr_hand_data {
-        let hand = hand.get_in_relative_space(&ctx.handler_location);
-        capture |= hand.index.tip.pos.distance(hand.thumb.tip.pos)
-            < (0.002 + hand.index.tip.radius + hand.thumb.tip.radius);
+        if let Some(hand) = method_data.hand {
+            let hand = hand.get_in_relative_space(&ctx.handler_location);
+            capture |= hand.index.tip.pos.distance(hand.thumb.tip.pos)
+                < (0.002 + hand.index.tip.radius + hand.thumb.tip.radius);
+        }
     }
     if let Some(controller) = xr_controller_data {
-        capture |= controller.trigger_pulled;
-        capture |= controller.squeezed;
-        capture |= controller.stick_pos.y.abs() > 0.1;
+        if method_data.select > 0.5 { capture = true; }
+        if method_data.secondary > 0.5 { capture = true; }
+
+        if let Some(scroll) = method_data.scroll {
+            if scroll.x > 0.1 || scroll.y > 0.1 {
+                capture = true;
+            }
+        }
     }
     capture
 }

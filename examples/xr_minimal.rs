@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy_egui::egui;
 use bevy_egui::EguiContext;
 use bevy_egui::EguiPlugin;
+use bevy_mod_openxr::add_xr_plugins;
 use bevy_panorbit_camera::PanOrbitCamera;
 use bevy_panorbit_camera::PanOrbitCameraPlugin;
 use bevy_spatial_egui::SpawnSpatialEguiWindowCommand;
@@ -10,12 +11,11 @@ use bevy_suis::window_pointers::SuisWindowPointerPlugin;
 use bevy_suis::xr::SuisXrPlugin;
 use bevy_suis::xr_controllers::SuisXrControllerPlugin;
 use bevy_suis::SuisCorePlugin;
-use bevy_mod_openxr::add_xr_plugins;
 
 fn main() -> AppExit {
     App::new()
         .add_plugins(add_xr_plugins(DefaultPlugins))
-        .add_plugins(bevy_xr_utils::hand_gizmos::HandGizmosPlugin)
+        .add_plugins(bevy_mod_xr::hand_debug_gizmos::HandGizmosPlugin)
         .add_plugins(PanOrbitCameraPlugin)
         .add_plugins((
             SuisCorePlugin,
@@ -25,7 +25,9 @@ fn main() -> AppExit {
             SuisXrControllerPlugin,
         ))
         .add_plugins(bevy_spatial_egui::SpatialEguiPlugin)
-        .add_plugins(EguiPlugin)
+        .add_plugins(EguiPlugin {
+            enable_multipass_for_primary_context: false,
+        })
         .add_systems(Startup, setup)
         .add_systems(Update, draw_ui)
         .run()

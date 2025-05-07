@@ -17,7 +17,9 @@ fn main() -> AppExit {
             SuisDebugGizmosPlugin,
         ))
         .add_plugins(bevy_spatial_egui::SpatialEguiPlugin)
-        .add_plugins(EguiPlugin)
+        .add_plugins(EguiPlugin {
+            enable_multipass_for_primary_context: false,
+        })
         .add_systems(Startup, setup)
         .add_systems(Update, draw_ui)
         .run()
