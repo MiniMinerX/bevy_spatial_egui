@@ -4,14 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = "0.14.2"
-bevy_egui = "0.29.0"
-bevy-suis = { git = "https://github.com/Schmarni-Dev/bevy-suis", branch = "further_work" }
+bevy = "0.16"
+bevy_egui = "0.34.1"
+bevy-suis = { git = "https://github.com/Schmarni-Dev/bevy-suis" }
 
 [dev-dependencies]
-bevy_panorbit_camera = "0.19.3"
-bevy_mod_openxr = { git = "https://github.com/awtterpip/bevy_oxr" }
-bevy_xr_utils = { git = "https://github.com/awtterpip/bevy_oxr" }
+bevy_panorbit_camera = "0.26"
+bevy_mod_openxr = "0.3"
+bevy_mod_xr = "0.3"
 
 [lints.clippy]
 too_many_arguments = "allow"
