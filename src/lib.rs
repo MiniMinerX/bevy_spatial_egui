@@ -103,7 +103,7 @@ fn update_spatial_window_input(
                     ) && data.distance < 0.0)
             },
         );
-        info!("query");
+        //info!("query");
         if action.hover_set().current().is_empty() {
             egui_input.events.push(egui::Event::PointerGone);
         }
