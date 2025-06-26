@@ -457,7 +457,7 @@ impl Command for SpawnSpatialEguiWindowCommand {
         world.insert_resource(materials);
         world.insert_resource(meshes);
         if let Some(target) = self.target_entity {
-            world.entity_mut(target).insert(bundle);
+            world.entity_mut(target).insert_if_new(bundle);
         } else {
             world.spawn(bundle);
         }
